@@ -8,20 +8,14 @@
 
 uint32_t crc32(const uint8_t *data, uint32_t length)   // checksum 	FIRMWARE
 {
-	uint32_t crc = 0xFFFFFFFF;
-	for(uint32_t i = 0; i < length; i++)
-	{
-		crc ^= data[i];
-		for(uint8_t j = 0; j < 8; j++)
-		{
-			if(crc & 1)
-				crc = (crc >> 1) ^ 0xEDB88320;
-			else
-				crc >>= 1;
-		}
-	}
-	return crc ^ 0xFFFFFFFF;
+	CRC->CR = CRC_CR_RESET;
+
+    for(uint32_t i = 0; i < length; i++) {
+        CRC->DR = data[i];
+    }
+    return CRC->DR;
 }
+
 uint16_t crc16(uint16_t c, const uint8_t *p, uint32_t n) // checksum FRAME
 {
     while (n--) {
