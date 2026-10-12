@@ -15,7 +15,6 @@
 #include "bl_jump.h"
 #include "crc32.h"
 #include "usart.h"
-#include "ota_auth.h"
 #include <string.h>
 #include "app_header.h"
 //#define OTA_FLAG_START 1
@@ -45,7 +44,6 @@ typedef struct {
     uint32_t size;       /* kich thuoc anh (byte) */
     uint32_t crc;        /* CRC32 mong doi cua toan anh */
     uint32_t version;
-    uint8_t  signature[OTA_SIGNATURE_SIZE];
     uint32_t next;       /* offset ke tiep dang cho; next == size nghia la da nhan du */
 } session_t;
 
@@ -95,7 +93,6 @@ static status_t on_start(session_t *s, const uint8_t *p, uint16_t len)
     if (len != sizeof *sp || sp->size == 0 || sp->size > APP_MAX_SIZE || (sp->size & 3)) return ST_ERR_PARAM;
 
     s->size = sp->size; s->crc = sp->crc; s->version = sp->version;
-    memcpy(s->signature, sp->signature, sizeof s->signature);
     /* Xoa trang header (truoc app) roi cac trang code (sau header); thu tu khong quan trong */
     if (flash_erase_page(APP_HEADER_ADDR) ||
         flash_erase(APP_START_ADDR, (s->size + PAGE_SZ - 1) / PAGE_SZ)) return ST_ERR_ERASE;
@@ -125,12 +122,9 @@ static status_t on_end(session_t *s)
     if (s->finished) return ST_OK;                              /* END lap */
     if (!s->started || s->next != s->size) return ST_ERR_STATE;
     if (crc32((const uint8_t *)APP_START_ADDR, s->size) != s->crc) return ST_ERR_CRC;
-    if (!ota_auth_verify((const uint8_t *)APP_START_ADDR, s->size,
-                         s->version, s->signature)) return ST_ERR_SIGNATURE;
 
     app_header_t hdr = { .reserved = 0, .magic = APP_MAGIC,
                          .size = s->size, .crc = s->crc, .version = s->version };
-    memcpy(hdr.signature, s->signature, sizeof hdr.signature);
     if (flash_write_page(APP_HEADER_ADDR, (u32 *)&hdr, sizeof hdr / 4)) return ST_ERR_WRITE;
     s->finished = 1;
     return ST_OK;

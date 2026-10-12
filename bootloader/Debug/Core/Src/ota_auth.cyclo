@@ -1,2 +1,0 @@
-../Core/Src/ota_auth.c:14:12:sha256_update_checked	1
-../Core/Src/ota_auth.c:20:5:ota_auth_verify	4

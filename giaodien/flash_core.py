@@ -3,15 +3,6 @@ import struct
 import time
 
 import serial
-from firmware_auth import (
-    APP_HEADER_SIZE,
-    APP_MAX_SIZE,
-    SIGNATURE_SIZE,
-    decode_signature_file,
-    is_app_vector as _is_app_vector,
-    prepare_image,
-    signature_path_for_firmware,
-)
 
 SOF = 0xA5
 EOF = 0x5A
@@ -24,10 +15,15 @@ CMD_REBOOT_BL = 5
 ST_OK = 0
 ST_ERR_FRAME = 1
 ST_ERR_CRC = 8
-ST_ERR_SIGNATURE = 10
 
 BAUD_RATE = 115200
 CHUNK_SIZE = 1024
+APP_HEADER_SIZE = 1024
+APP_HEADER_MAGIC = 0xABCDEFAB
+APP_START_ADDR = 0x08004400
+APP_MAX_SIZE = 47 * 1024
+RAM_START_ADDR = 0x20000000
+RAM_END_ADDR = 0x20005000
 
 MAX_RETRY = 3
 INITIAL_SYNC_TIMEOUT = 0.75
@@ -166,7 +162,6 @@ def _status_message(status: int) -> str:
         7: "Ghi Flash thất bại",
         8: "CRC32 ảnh không khớp",
         9: "Ứng dụng không hợp lệ",
-        10: "Chữ ký firmware không hợp lệ hoặc public key chưa được cấu hình",
     }
     return messages.get(status, f"Mã trạng thái không xác định: {status}")
 
@@ -189,6 +184,30 @@ def _send_command(
             continue
         return response
     return None
+
+
+def _is_app_vector(image: bytes, offset: int = 0) -> bool:
+    if len(image) < offset + 8:
+        return False
+    stack, reset = struct.unpack_from("<II", image, offset)
+    reset_addr = reset & ~1
+    return (
+        RAM_START_ADDR <= stack <= RAM_END_ADDR
+        and APP_START_ADDR <= reset_addr < APP_START_ADDR + APP_MAX_SIZE
+        and bool(reset & 1)
+    )
+
+
+def prepare_image(path: str) -> tuple[bytes, bool]:
+    with open(path, "rb") as file:
+        image = file.read()
+
+    if len(image) >= APP_HEADER_SIZE + 8:
+        magic = struct.unpack_from("<I", image, 4)[0]
+        if magic == APP_HEADER_MAGIC and _is_app_vector(image, APP_HEADER_SIZE):
+            return image[APP_HEADER_SIZE:], True
+
+    return image, False
 
 
 def _log_application_output(ser, on_log, stop_event) -> None:
@@ -256,17 +275,6 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
         )
         return False
 
-    sig_path = signature_path_for_firmware(path)
-    try:
-        with open(sig_path, "rb") as file:
-            version, signature = decode_signature_file(file.read())
-    except (OSError, ValueError) as exc:
-        on_log(f"Không đọc được chữ ký firmware ({sig_path}): {exc}")
-        return False
-    if len(signature) != SIGNATURE_SIZE:
-        on_log("Sidecar chữ ký không chứa chữ ký ECDSA P-256 hợp lệ.")
-        return False
-
     expected_crc = crc32_stm32(image)
     if corrupt:
         damaged = bytearray(image)
@@ -275,11 +283,7 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
         on_log("[Thử lỗi CRC] Đã đổi một byte, giữ CRC gốc để bootloader từ chối.")
 
     packets = [
-        (
-            "START",
-            CMD_START,
-            struct.pack("<III", len(image), expected_crc, version) + signature,
-        ),
+        ("START", CMD_START, struct.pack("<III", len(image), expected_crc, 0)),
     ]
     for offset in range(0, len(image), CHUNK_SIZE):
         chunk = image[offset:offset + CHUNK_SIZE]
@@ -348,11 +352,6 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                         "CRC32 ảnh không khớp: bootloader từ chối firmware; "
                         "không gửi JUMP, board ở lại bootloader."
                     )
-                elif name == "END" and response == ST_ERR_SIGNATURE:
-                    on_log(
-                        "Chữ ký firmware không hợp lệ: bootloader từ chối ảnh; "
-                        "không gửi JUMP, board ở lại bootloader."
-                    )
                 elif response is None:
                     if name == "JUMP":
                         on_log(
@@ -373,10 +372,7 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
 
             on_progress(int(100 * (index + 1) / len(packets)))
 
-        on_log(
-            "Nạp, CRC và chữ ký firmware hợp lệ; "
-            "bootloader đã xác nhận lệnh JUMP."
-        )
+        on_log("Nạp và kiểm tra CRC thành công; bootloader đã xác nhận lệnh JUMP.")
         try:
             _log_application_output(ser, on_log, stop_event)
         except serial.SerialException as exc:

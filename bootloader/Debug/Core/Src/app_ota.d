@@ -27,8 +27,7 @@ Core/Src/app_ota.o: ../Core/Src/app_ota.c ../Core/Inc/flash_layout.h \
  ../Core/Inc/flash_operations.h ../Core/Inc/flash_prog.h \
  ../Core/Inc/type_config.h ../Core/Inc/bl_jump.h \
  ../Core/Inc/flash_layout.h ../Core/Inc/crc32.h ../Core/Inc/bl_jump.h \
- ../Core/Inc/usart.h ../Core/Inc/main.h ../Core/Inc/ota_auth.h \
- ../Core/Inc/app_header.h
+ ../Core/Inc/usart.h ../Core/Inc/main.h ../Core/Inc/app_header.h
 ../Core/Inc/flash_layout.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h:
@@ -66,5 +65,4 @@ Core/Src/app_ota.o: ../Core/Src/app_ota.c ../Core/Inc/flash_layout.h \
 ../Core/Inc/bl_jump.h:
 ../Core/Inc/usart.h:
 ../Core/Inc/main.h:
-../Core/Inc/ota_auth.h:
 ../Core/Inc/app_header.h:

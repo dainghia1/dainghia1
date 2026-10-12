@@ -74,12 +74,7 @@ class Main:
         self.ui.cbPort.addItems([p.device for p in list_ports.comports()])
 
     def browse(self, edit):
-        p, _ = QFileDialog.getOpenFileName(
-            self.ui,
-            "Chọn firmware .bin (cần file .bin.sig đi kèm)",
-            "",
-            "Binary (*.bin);;All (*)",
-        )
+        p, _ = QFileDialog.getOpenFileName(self.ui, "Chọn file .bin", "", "Binary (*.bin);;All (*)")
         if p:
             edit.setText(p)
 

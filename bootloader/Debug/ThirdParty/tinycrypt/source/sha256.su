@@ -1,6 +1,0 @@
-../ThirdParty/tinycrypt/source/sha256.c:39:5:tc_sha256_init	16	static
-../ThirdParty/tinycrypt/source/sha256.c:65:5:tc_sha256_update	32	static
-../ThirdParty/tinycrypt/source/sha256.c:87:5:tc_sha256_final	40	static
-../ThirdParty/tinycrypt/source/sha256.c:157:28:ROTR	16	static
-../ThirdParty/tinycrypt/source/sha256.c:170:28:BigEndian	24	static
-../ThirdParty/tinycrypt/source/sha256.c:181:13:compress	144	static

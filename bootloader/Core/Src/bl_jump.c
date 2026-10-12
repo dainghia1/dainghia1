@@ -8,7 +8,6 @@
 #include "app_header.h"
 #include "crc32.h"
 #include "flash_prog.h"
-#include "ota_auth.h"
 
 
 typedef void (*pFunction)(void);
@@ -66,11 +65,6 @@ int bootloader_is_app_valid(void)
 	if(calc_crc != app_hdr->crc)
 	{
 		return 4;
-	}
-	if(!ota_auth_verify((const uint8_t *)APP_START_ADDR, app_hdr->size,
-	                    app_hdr->version, app_hdr->signature))
-	{
-		return 5;
 	}
 	return 0;
 }
