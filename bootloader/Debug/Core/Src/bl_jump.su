@@ -1,4 +1,4 @@
-../Drivers/CMSIS/Include/core_cm3.h:1547:22:__NVIC_DisableIRQ	16	static,ignoring_inline_asm
+../Drivers/CMSIS/Include/core_cm3.h:1547:22:__NVIC_DisableIRQ	16	static
 ../Drivers/CMSIS/Include/core_cm3.h:1600:22:__NVIC_ClearPendingIRQ	16	static
-../Core/Src/bl_jump.c:15:6:JumptoApplication	24	static,ignoring_inline_asm
-../Core/Src/bl_jump.c:44:5:bootloader_is_app_valid	24	static
+../Core/Src/bl_jump.c:16:6:JumptoApplication	24	static
+../Core/Src/bl_jump.c:45:5:bootloader_is_app_valid	24	static

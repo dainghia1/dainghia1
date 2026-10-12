@@ -25,4 +25,3 @@ uint16_t crc16(uint16_t c, const uint8_t *p, uint32_t n) // checksum FRAME
     }
     return c;
 }
-

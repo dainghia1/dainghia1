@@ -1,9 +1,17 @@
 import os
 import struct
 import time
-import zlib
 
 import serial
+from firmware_auth import (
+    APP_HEADER_SIZE,
+    APP_MAX_SIZE,
+    SIGNATURE_SIZE,
+    decode_signature_file,
+    is_app_vector as _is_app_vector,
+    prepare_image,
+    signature_path_for_firmware,
+)
 
 SOF = 0xA5
 EOF = 0x5A
@@ -16,15 +24,10 @@ CMD_REBOOT_BL = 5
 ST_OK = 0
 ST_ERR_FRAME = 1
 ST_ERR_CRC = 8
+ST_ERR_SIGNATURE = 10
 
 BAUD_RATE = 115200
-CHUNK_SIZE = 128
-APP_HEADER_SIZE = 1024
-APP_HEADER_MAGIC = 0xABCDEFAB
-APP_START_ADDR = 0x08004400
-APP_MAX_SIZE = 47 * 1024
-RAM_START_ADDR = 0x20000000
-RAM_END_ADDR = 0x20005000
+CHUNK_SIZE = 1024
 
 MAX_RETRY = 3
 INITIAL_SYNC_TIMEOUT = 0.75
@@ -32,7 +35,6 @@ APP_REBOOT_TIMEOUT = 1.0
 SYNC_TIMEOUT = 8.0
 RESPONSE_TIMEOUT = 1.0
 START_TIMEOUT = 8.0
-MAX_RESPONSE_TEXT_SIZE = 96
 APP_OUTPUT_CAPTURE_SECONDS = 3.5
 
 
@@ -51,12 +53,20 @@ def crc16(data: bytes) -> int:
 
 
 def crc32_stm32(data: bytes) -> int:
-    """Match the bootloader's reflected CRC-32 implementation."""
-    return zlib.crc32(data) & 0xFFFFFFFF
+    """Match STM32F1 CRC peripheral writes of one zero-extended byte per word."""
+    crc = 0xFFFFFFFF
+    for byte in data:
+        word = byte
+        for bit in range(31, -1, -1):
+            feedback = ((crc >> 31) ^ (word >> bit)) & 1
+            crc = (crc << 1) & 0xFFFFFFFF
+            if feedback:
+                crc ^= 0x04C11DB7
+    return crc
 
 
 def frame(cmd: int, payload: bytes = b"") -> bytes:
-    if len(payload) > 132:
+    if len(payload) > 4 + CHUNK_SIZE:
         raise ValueError("Payload vượt quá bộ đệm của bootloader.")
     body = bytes([cmd]) + struct.pack("<H", len(payload)) + payload
     checksum = crc16(body)
@@ -121,7 +131,7 @@ def _request_app_reboot(ser) -> None:
 
 def _read_response(
     ser, expected_cmd: int, timeout: float
-) -> tuple[int, str] | None:
+) -> int | None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         first = _read_exact(ser, 1, deadline)
@@ -129,54 +139,20 @@ def _read_response(
             return None
         if first[0] != SOF:
             continue
-        header = _read_exact(ser, 3, deadline)
-        if header is None:
+        rest = _read_exact(ser, 5, deadline)
+        if rest is None:
             return None
 
-        cmd, status, text_size = header
-        if text_size > MAX_RESPONSE_TEXT_SIZE:
-            raise ProtocolError(
-                f"Độ dài thông báo phản hồi không hợp lệ: {text_size}."
-            )
-        tail = _read_exact(ser, text_size + 3, deadline)
-        if tail is None:
-            return None
-
-        text = tail[:text_size]
-        received_crc = struct.unpack("<H", tail[text_size:text_size + 2])[0]
-        body = bytes([cmd, status, text_size]) + text
-        if tail[-1] != EOF or received_crc != crc16(body):
+        cmd, status = rest[0], rest[1]
+        received_crc = struct.unpack("<H", rest[2:4])[0]
+        if rest[4] != EOF or received_crc != crc16(bytes([cmd, status])):
             raise ProtocolError("Phản hồi bootloader sai CRC16/EOF.")
         if cmd != expected_cmd and not (cmd == 0 and status == ST_ERR_FRAME):
             raise ProtocolError(
                 f"CMD phản hồi không khớp (nhận {cmd}, cần {expected_cmd})."
             )
-        return status, text.decode("utf-8", errors="replace")
+        return status
     return None
-
-
-def _is_app_vector(image: bytes, offset: int = 0) -> bool:
-    if len(image) < offset + 8:
-        return False
-    stack, reset = struct.unpack_from("<II", image, offset)
-    reset_addr = reset & ~1
-    return (
-        RAM_START_ADDR <= stack <= RAM_END_ADDR
-        and APP_START_ADDR <= reset_addr < APP_START_ADDR + APP_MAX_SIZE
-        and bool(reset & 1)
-    )
-
-
-def prepare_image(path: str) -> tuple[bytes, bool]:
-    with open(path, "rb") as file:
-        image = file.read()
-
-    if len(image) >= APP_HEADER_SIZE + 8:
-        magic = struct.unpack_from("<I", image, 4)[0]
-        if magic == APP_HEADER_MAGIC and _is_app_vector(image, APP_HEADER_SIZE):
-            return image[APP_HEADER_SIZE:], True
-
-    return image, False
 
 
 def _status_message(status: int) -> str:
@@ -190,13 +166,14 @@ def _status_message(status: int) -> str:
         7: "Ghi Flash thất bại",
         8: "CRC32 ảnh không khớp",
         9: "Ứng dụng không hợp lệ",
+        10: "Chữ ký firmware không hợp lệ hoặc public key chưa được cấu hình",
     }
     return messages.get(status, f"Mã trạng thái không xác định: {status}")
 
 
 def _send_command(
     ser, cmd: int, payload: bytes, timeout: float
-) -> tuple[int, str] | None:
+) -> int | None:
     packet = frame(cmd, payload)
     for attempt in range(MAX_RETRY + 1):
         ser.write(packet)
@@ -206,10 +183,9 @@ def _send_command(
                 continue
             return None
 
-        status, _ = response
-        if status == ST_OK:
+        if response == ST_OK:
             return response
-        if status == ST_ERR_FRAME and attempt < MAX_RETRY:
+        if response == ST_ERR_FRAME and attempt < MAX_RETRY:
             continue
         return response
     return None
@@ -280,6 +256,17 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
         )
         return False
 
+    sig_path = signature_path_for_firmware(path)
+    try:
+        with open(sig_path, "rb") as file:
+            version, signature = decode_signature_file(file.read())
+    except (OSError, ValueError) as exc:
+        on_log(f"Không đọc được chữ ký firmware ({sig_path}): {exc}")
+        return False
+    if len(signature) != SIGNATURE_SIZE:
+        on_log("Sidecar chữ ký không chứa chữ ký ECDSA P-256 hợp lệ.")
+        return False
+
     expected_crc = crc32_stm32(image)
     if corrupt:
         damaged = bytearray(image)
@@ -288,7 +275,11 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
         on_log("[Thử lỗi CRC] Đã đổi một byte, giữ CRC gốc để bootloader từ chối.")
 
     packets = [
-        ("START", CMD_START, struct.pack("<III", len(image), expected_crc, 0)),
+        (
+            "START",
+            CMD_START,
+            struct.pack("<III", len(image), expected_crc, version) + signature,
+        ),
     ]
     for offset in range(0, len(image), CHUNK_SIZE):
         chunk = image[offset:offset + CHUNK_SIZE]
@@ -351,20 +342,18 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                 on_log(f"Lỗi truyền UART tại {name}: {exc}")
                 return False
 
-            if response is None:
-                status = None
-                device_message = ""
-            else:
-                status, device_message = response
-
-            if status != ST_OK:
-                if name == "END" and status == ST_ERR_CRC:
+            if response != ST_OK:
+                if name == "END" and response == ST_ERR_CRC:
                     on_log(
-                        f"STM32 báo lỗi: {device_message or _status_message(status)}; "
-                        "bootloader từ chối firmware; "
+                        "CRC32 ảnh không khớp: bootloader từ chối firmware; "
                         "không gửi JUMP, board ở lại bootloader."
                     )
-                elif status is None:
+                elif name == "END" and response == ST_ERR_SIGNATURE:
+                    on_log(
+                        "Chữ ký firmware không hợp lệ: bootloader từ chối ảnh; "
+                        "không gửi JUMP, board ở lại bootloader."
+                    )
+                elif response is None:
                     if name == "JUMP":
                         on_log(
                             "Không nhận được phản hồi JUMP; firmware đã qua bước CRC "
@@ -378,14 +367,16 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                 else:
                     on_log(
                         f"{name} thất bại: "
-                        f"{device_message or _status_message(status)} "
-                        f"(status={status})."
+                        f"{_status_message(response)} (status={response})."
                     )
                 return False
 
             on_progress(int(100 * (index + 1) / len(packets)))
 
-        on_log("Nạp và kiểm tra CRC thành công; bootloader đã xác nhận lệnh JUMP.")
+        on_log(
+            "Nạp, CRC và chữ ký firmware hợp lệ; "
+            "bootloader đã xác nhận lệnh JUMP."
+        )
         try:
             _log_application_output(ser, on_log, stop_event)
         except serial.SerialException as exc:

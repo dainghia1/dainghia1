@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "crc.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -89,9 +90,15 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
-  read_byte();  /* Start the first UART interrupt receive for the RX ring buffer. */
+  if (read_byte() != HAL_OK)
+  {
+    Error_Handler();
+  }
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
-  __HAL_RCC_PWR_CLK_ENABLE(); __HAL_RCC_BKP_CLK_ENABLE(); HAL_PWR_EnableBkUpAccess();
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_RCC_BKP_CLK_ENABLE();
+  HAL_PWR_EnableBkUpAccess();
   int stay = (BKP->DR1 == BL_FLAG);
   if (stay) BKP->DR1 = 0;
   HAL_Delay(100);
@@ -114,8 +121,15 @@ int main(void)
                JumptoApplication();
            }
        }
-       if ((checked || stay) && HAL_GetTick() - tb > 80) { tb = HAL_GetTick(); HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13); } /* nhay rat nhanh = khong co app hop le */
-       if (HAL_GetTick() - tm > 250) { tm = HAL_GetTick(); HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1); }   /* LED_MODE: con dang o bootloader */
+       if ((checked || stay) && HAL_GetTick() - tb > 80) {
+    	   tb = HAL_GetTick();
+    	   HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+       } /* nhay rat nhanh = khong co app hop le */
+
+       if (HAL_GetTick() - tm > 250) {
+    	   tm = HAL_GetTick();
+    	   HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+       }   /* LED_MODE: con dang o bootloader */
   }
   /* USER CODE END 3 */
 }
@@ -174,7 +188,6 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number

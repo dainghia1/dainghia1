@@ -17,7 +17,7 @@
 #define NACK 	0x1F
 
 
-#define CHUNK_MAX   128
+#define CHUNK_MAX   1024
 #define FRAME_PAYLOAD_MAX	(4 + CHUNK_MAX)
 
 typedef enum {
@@ -42,7 +42,8 @@ typedef enum {
     ST_ERR_ERASE,         /* 6: xoa Flash that bai */
     ST_ERR_WRITE,         /* 7: ghi Flash that bai */
     ST_ERR_CRC,           /* 8: CRC32 toan anh sai */
-    ST_ERR_APP            /* 9: JUMP nhung app_valid() != 0 */
+    ST_ERR_APP,           /* 9: JUMP nhung app_valid() != 0 */
+    ST_ERR_SIGNATURE      /* 10: firmware signature khong hop le */
 } status_t;
 
 typedef struct __attribute__((packed))
@@ -65,6 +66,7 @@ typedef struct __attribute__((packed)) {      /* payload cua CMD_START */
     uint32_t size;
     uint32_t crc;
     uint32_t version;
+    uint8_t signature[64];
 } start_payload_t;
 
 typedef struct __attribute__((packed)) {      /* payload cua CMD_DATA (data[] chi len-4 byte dau co nghia) */
@@ -75,7 +77,7 @@ typedef struct __attribute__((packed)) {      /* payload cua CMD_DATA (data[] ch
 /* Kich thuoc struct = kich thuoc tren day truyen. Sai thi bao loi luc bien dich. */
 
 _Static_assert(sizeof(frame_hdr_t)     == 4,  "frame_hdr_t phai 4 byte");
-_Static_assert(sizeof(start_payload_t) == 12, "start_payload_t phai 12 byte");
+_Static_assert(sizeof(start_payload_t) == 76, "start_payload_t phai 76 byte");
 _Static_assert(sizeof(data_payload_t)  == 4 + CHUNK_MAX, "data_payload_t sai kich thuoc");
 
 void loader(void);

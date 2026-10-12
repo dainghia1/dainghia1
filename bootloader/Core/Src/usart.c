@@ -157,8 +157,6 @@ void uart_send(const uint8_t *p, uint16_t n) {
 }
 int read_byte(void)
 {
-	//HAL_UART_Receive_IT(&huart1, pData, Size);
-	HAL_UART_Receive_IT(&huart1, &rx_irq_byte, 1);
-	return 0;
+	return HAL_UART_Receive_IT(&huart1, &rx_irq_byte, 1);
 }
 /* USER CODE END 1 */

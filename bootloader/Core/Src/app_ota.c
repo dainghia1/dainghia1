@@ -15,6 +15,7 @@
 #include "bl_jump.h"
 #include "crc32.h"
 #include "usart.h"
+#include "ota_auth.h"
 #include <string.h>
 #include "app_header.h"
 //#define OTA_FLAG_START 1
@@ -44,48 +45,24 @@ typedef struct {
     uint32_t size;       /* kich thuoc anh (byte) */
     uint32_t crc;        /* CRC32 mong doi cua toan anh */
     uint32_t version;
+    uint8_t  signature[OTA_SIGNATURE_SIZE];
     uint32_t next;       /* offset ke tiep dang cho; next == size nghia la da nhan du */
 } session_t;
 
 /* ---------- Phan hoi ---------- */
-/* A5 | CMD | STATUS | TEXT_LEN | TEXT | CRC16(CMD..TEXT) | 5A */
-static void send_resp(uint8_t cmd, status_t st, int app_error)
+/* A5 | CMD | STATUS | CRC16(CMD..STATUS) | 5A */
+static void send_resp(uint8_t cmd, status_t st)
 {
-    const char *message = "";
-    switch (st) {
-    case ST_ERR_FRAME:       message = "Loi frame, CRC16 hoac EOF"; break;
-    case ST_ERR_UNKNOWN_CMD: message = "Lenh khong duoc ho tro"; break;
-    case ST_ERR_PARAM:       message = "Tham so hoac kich thuoc khong hop le"; break;
-    case ST_ERR_STATE:       message = "Lenh khong dung trang thai phien nap"; break;
-    case ST_ERR_OFFSET:      message = "Offset du lieu khong lien tiep"; break;
-    case ST_ERR_ERASE:       message = "Xoa Flash that bai"; break;
-    case ST_ERR_WRITE:       message = "Ghi Flash that bai"; break;
-    case ST_ERR_CRC:         message = "CRC32 firmware khong khop"; break;
-    case ST_ERR_APP:
-        switch (app_error) {
-        case 1: message = "MAGIC ERROR"; break;
-        case 2: message = "RESET VECTOR ERROR"; break;
-        case 3: message = "SIZE ERROR"; break;
-        case 4: message = "CRC ERROR"; break;
-        default: message = "APPLICATION ERROR"; break;
-        }
-        break;
-    default: break;
-    }
-
-    uint8_t message_len = (uint8_t)strlen(message);
-    uint8_t response[4 + 96 + 3];
+    uint8_t response[6];
     response[0] = SOF;
     response[1] = cmd;
     response[2] = (uint8_t)st;
-    response[3] = message_len;
-    memcpy(&response[4], message, message_len);
 
-    uint16_t checksum = crc16(0, &response[1], 3 + message_len);
-    response[4 + message_len] = (uint8_t)checksum;
-    response[5 + message_len] = (uint8_t)(checksum >> 8);
-    response[6 + message_len] = EOF;
-    uart_send(response, (uint16_t)(7 + message_len));
+    uint16_t checksum = crc16(0, &response[1], 2);
+    response[3] = (uint8_t)checksum;
+    response[4] = (uint8_t)(checksum >> 8);
+    response[5] = EOF;
+    uart_send(response, sizeof response);
 }
 
 /* ---------- Nhan khung ----------
@@ -118,6 +95,7 @@ static status_t on_start(session_t *s, const uint8_t *p, uint16_t len)
     if (len != sizeof *sp || sp->size == 0 || sp->size > APP_MAX_SIZE || (sp->size & 3)) return ST_ERR_PARAM;
 
     s->size = sp->size; s->crc = sp->crc; s->version = sp->version;
+    memcpy(s->signature, sp->signature, sizeof s->signature);
     /* Xoa trang header (truoc app) roi cac trang code (sau header); thu tu khong quan trong */
     if (flash_erase_page(APP_HEADER_ADDR) ||
         flash_erase(APP_START_ADDR, (s->size + PAGE_SZ - 1) / PAGE_SZ)) return ST_ERR_ERASE;
@@ -147,19 +125,20 @@ static status_t on_end(session_t *s)
     if (s->finished) return ST_OK;                              /* END lap */
     if (!s->started || s->next != s->size) return ST_ERR_STATE;
     if (crc32((const uint8_t *)APP_START_ADDR, s->size) != s->crc) return ST_ERR_CRC;
+    if (!ota_auth_verify((const uint8_t *)APP_START_ADDR, s->size,
+                         s->version, s->signature)) return ST_ERR_SIGNATURE;
 
     app_header_t hdr = { .reserved = 0, .magic = APP_MAGIC,
                          .size = s->size, .crc = s->crc, .version = s->version };
+    memcpy(hdr.signature, s->signature, sizeof hdr.signature);
     if (flash_write_page(APP_HEADER_ADDR, (u32 *)&hdr, sizeof hdr / 4)) return ST_ERR_WRITE;
     s->finished = 1;
     return ST_OK;
 }
 
-static status_t on_jump(int *app_error)
+static status_t on_jump(void)
 {
-    *app_error = bootloader_is_app_valid();
-    if (*app_error != 0) return ST_ERR_APP;
-    return ST_OK;                  /* nhay that su sau khi da gui phan hoi, xem loader() */
+    return bootloader_is_app_valid() == 0 ? ST_OK : ST_ERR_APP;
 }
 
 /* ---------- Vong lap xu ly mot phien nap ---------- */
@@ -171,20 +150,17 @@ void loader(void)
     for (;;) {
         int r = rx_frame(&f);
         if (r == 1) continue;
-        if (r < 0) { send_resp(0, ST_ERR_FRAME, 0); continue; }
+        if (r < 0) { send_resp(0, ST_ERR_FRAME); continue; }
 
         status_t st;
-        int app_error = 0;
         switch (f.hdr.cmd) {
         case CMD_START: st = on_start(&s, f.payload, f.hdr.len); break;
         case CMD_DATA:  st = on_data(&s, f.payload, f.hdr.len);  break;
         case CMD_END:   st = (f.hdr.len == 0) ? on_end(&s)  : ST_ERR_PARAM; break;
-        case CMD_JUMP:
-            st = (f.hdr.len == 0) ? on_jump(&app_error) : ST_ERR_PARAM;
-            break;
+        case CMD_JUMP:  st = (f.hdr.len == 0) ? on_jump() : ST_ERR_PARAM; break;
         default:        st = ST_ERR_UNKNOWN_CMD;
         }
-        send_resp(f.hdr.cmd, st, app_error);
+        send_resp(f.hdr.cmd, st);
 
         if (f.hdr.cmd == CMD_JUMP && st == ST_OK) { HAL_Delay(5); JumptoApplication(); }
     }

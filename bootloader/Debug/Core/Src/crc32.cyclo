@@ -1,2 +1,2 @@
-../Core/Src/crc32.c:9:10:crc32	4
-../Core/Src/crc32.c:25:10:crc16	4
+../Core/Src/crc32.c:9:10:crc32	2
+../Core/Src/crc32.c:19:10:crc16	4
