@@ -7,7 +7,7 @@ from PySide6.QtUiTools import QUiLoader
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from serial.tools import list_ports
 
-from flash_core import BAUD_RATE, flash
+from flash_core import flash
 
 STYLE = """
 QWidget { font-family: 'Segoe UI'; font-size: 10pt; }
@@ -48,13 +48,10 @@ class Main:
 
         self.ui.tedt.setReadOnly(True)
         self.ui.pgBar.setValue(0)
-        self.ui.lbStatus.setText(
-            "Sẵn sàng. Bấm Flash; tool sẽ tự yêu cầu app vào bootloader."
-        )
+        self.ui.lbStatus.setText("Sẵn sàng. Bấm RESET board trước khi nạp.")
 
-        self.ui.cbBaud.addItem(str(BAUD_RATE))
-        self.ui.cbBaud.setCurrentText(str(BAUD_RATE))
-        self.ui.cbBaud.setEnabled(False)
+        self.ui.cbBaud.addItems(["115200"])
+        self.ui.cbBaud.setCurrentText("115200")
         self.ui.edtA.setText(os.path.join(base, "appA.bin"))
         self.ui.edtB.setText(os.path.join(base, "appB.bin"))
 
@@ -63,8 +60,7 @@ class Main:
         self.ui.btnBrowseB.clicked.connect(lambda: self.browse(self.ui.edtB))
         self.ui.btnFlashA.clicked.connect(lambda: self.start(self.ui.edtA.text(), False))
         self.ui.btnFlashB.clicked.connect(lambda: self.start(self.ui.edtB.text(), False))
-        self.ui.btnError.clicked.connect(lambda: self.start(self.ui.edtA.text(), True))   # nạp ảnh lỗi
-        self.ui.btnCancel.clicked.connect(self.stop_event.set)
+        self.ui.btnCancel.clicked.connect(self.cancel)
         self.ui.btnCancel.setEnabled(False)
         self.refresh_ports()
         self.ui.show()
@@ -79,9 +75,17 @@ class Main:
             edit.setText(p)
 
     def set_busy(self, busy):
-        for b in (self.ui.btnFlashA, self.ui.btnFlashB, self.ui.btnError):
+        for b in (self.ui.btnFlashA, self.ui.btnFlashB):
             b.setEnabled(not busy)
         self.ui.btnCancel.setEnabled(busy)
+
+    def cancel(self):
+        if self.stop_event.is_set():
+            return
+        self.stop_event.set()
+        self.ui.btnCancel.setEnabled(False)
+        self.ui.lbStatus.setText("Đang hủy...")
+        self.ui.tedt.appendPlainText("Đã yêu cầu hủy; đang dừng quá trình nạp.")
 
     def start(self, path, corrupt):
         port = self.ui.cbPort.currentText()
@@ -97,6 +101,7 @@ class Main:
             QMessageBox.critical(self.ui, "Sai baud", "Baud phải là số.")
             return
 
+        self.ui.tedt.clear()
         self.stop_event.clear()
         self.ui.pgBar.setValue(0)
         self.ui.lbStatus.setText("Đang nạp...")
@@ -111,10 +116,19 @@ class Main:
 
     def on_done(self, ok):
         self.set_busy(False)
+<<<<<<< Updated upstream
+        self.ui.lbStatus.setText("THÀNH CÔNG - ứng dụng đang chạy" if ok
+                                 else "THẤT BẠI - bootloader vẫn ở lại, có thể nạp lại")
+=======
         self.ui.lbStatus.setText(
-            "THÀNH CÔNG - bootloader đã chấp nhận lệnh chạy ứng dụng"
-            if ok else "THẤT BẠI - xem nhật ký để biết trạng thái thiết bị"
+            "ĐÃ HỦY - quá trình nạp đã dừng."
+            if self.stop_event.is_set()
+            else (
+                "THÀNH CÔNG - bootloader đã chấp nhận lệnh chạy ứng dụng"
+                if ok else "THẤT BẠI - xem nhật ký để biết trạng thái thiết bị"
+            )
         )
+>>>>>>> Stashed changes
 
 
 if __name__ == "__main__":

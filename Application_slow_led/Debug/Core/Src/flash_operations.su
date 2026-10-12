@@ -1,0 +1,3 @@
+../Core/Src/flash_operations.c:11:6:flash_read_page	32	static
+../Core/Src/flash_operations.c:20:5:flash_erase_page	40	static
+../Core/Src/flash_operations.c:34:5:flash_write_page	40	static

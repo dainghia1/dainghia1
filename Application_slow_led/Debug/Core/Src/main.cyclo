@@ -1,0 +1,9 @@
+../Drivers/CMSIS/Include/core_cm3.h:1762:34:__NVIC_SystemReset	1
+../Core/Inc/app_bl_entry.h:18:24:bl_crc16	4
+../Core/Inc/app_bl_entry.h:37:20:bl_reboot_to_bootloader	0
+../Core/Inc/app_bl_entry.h:52:20:bl_poll	8
+../Core/Inc/button_entry.h:12:20:btn_init	1
+../Core/Inc/button_entry.h:24:20:btn_poll	8
+../Core/Src/main.c:79:5:main	2
+../Core/Src/main.c:147:6:SystemClock_Config	3
+../Core/Src/main.c:190:6:Error_Handler	1

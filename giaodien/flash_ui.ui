@@ -120,13 +120,6 @@
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="btnError">
-       <property name="text">
-        <string>Error</string>
-       </property>
-      </widget>
-     </item>
-     <item>
       <widget class="QPushButton" name="btnCancel">
        <property name="text">
         <string>Cancel</string>
