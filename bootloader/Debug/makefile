@@ -66,8 +66,8 @@ all: main-build
 main-build: bootloader.elf secondary-outputs
 
 # Tool invocations
-bootloader.elf bootloader.map: $(OBJS) $(USER_OBJS) D:\bootloader_stm32f103_hal\bootloader\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "bootloader.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"D:\bootloader_stm32f103_hal\bootloader\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="bootloader.map" -Wl,--gc-sections -static -Wl,-Map=bootloader.map --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+bootloader.elf bootloader.map: $(OBJS) $(USER_OBJS) D:\Bootloader\bootloader\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "bootloader.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"D:\Bootloader\bootloader\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="bootloader.map" -Wl,--gc-sections -static -Wl,-Map=bootloader.map --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
