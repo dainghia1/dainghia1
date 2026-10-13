@@ -1,6 +1,6 @@
 ################################################################################
 # Automatically-generated file. Do not edit!
-# Toolchain: GNU Tools for STM32 (14.3.rel1)
+# Toolchain: GNU Tools for STM32 (13.3.rel1)
 ################################################################################
 
 -include ../makefile.init
@@ -34,40 +34,40 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := Application
+BUILD_ARTIFACT_NAME := Application_fast_led
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-Application.elf \
+Application_fast_led.elf \
 
 MAP_FILES += \
-Application.map \
+Application_fast_led.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-Application.list \
+Application_fast_led.list \
 
 OBJCOPY_HEX += \
-Application.hex \
+Application_fast_led.hex \
 
 OBJCOPY_BIN += \
-Application.bin \
+Application_fast_led.bin \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: Application.elf secondary-outputs
+main-build: Application_fast_led.elf secondary-outputs
 
 # Tool invocations
-Application.elf Application.map: $(OBJS) $(USER_OBJS) /home/minh-bui/Desktop/bootloader-Trong/Bootloader/Application_fast_led/STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Application.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"/home/minh-bui/Desktop/bootloader-Trong/Bootloader/Application_fast_led/STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Application.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Application_fast_led.elf Application_fast_led.map: $(OBJS) $(USER_OBJS) D:\bootloader_stm32f103_hal\Application_fast_led\STM32F103C8TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Application_fast_led.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"D:\bootloader_stm32f103_hal\Application_fast_led\STM32F103C8TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Application_fast_led.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -76,24 +76,24 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-Application.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "Application.list"
+Application_fast_led.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "Application_fast_led.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
-Application.hex: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objcopy  -O ihex $(EXECUTABLES) "Application.hex"
+Application_fast_led.hex: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O ihex $(EXECUTABLES) "Application_fast_led.hex"
 	@echo 'Finished building: $@'
 	@echo ' '
 
-Application.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "Application.bin"
+Application_fast_led.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "Application_fast_led.bin"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) Application.bin Application.elf Application.hex Application.list Application.map default.size.stdout
+	-$(RM) Application_fast_led.bin Application_fast_led.elf Application_fast_led.hex Application_fast_led.list Application_fast_led.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_HEX) $(OBJCOPY_BIN)

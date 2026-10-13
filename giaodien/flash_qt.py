@@ -48,7 +48,9 @@ class Main:
 
         self.ui.tedt.setReadOnly(True)
         self.ui.pgBar.setValue(0)
-        self.ui.lbStatus.setText("Sẵn sàng. Bấm RESET board trước khi nạp.")
+        self.ui.lbStatus.setText(
+            "Sẵn sàng. Tool sẽ tự đồng bộ; reset board nếu không kết nối được."
+        )
 
         self.ui.cbBaud.addItems(["115200"])
         self.ui.cbBaud.setCurrentText("115200")
@@ -108,27 +110,31 @@ class Main:
         self.set_busy(True)
 
         def job():
-            ok = flash(port, baud, path, corrupt,
-                       self.br.progress.emit, self.br.log.emit, self.stop_event)
-            self.br.done.emit(ok)
+            ok = False
+            try:
+                ok = flash(
+                    port, baud, path, corrupt,
+                    self.br.progress.emit, self.br.log.emit, self.stop_event
+                )
+            except Exception as exc:
+                self.br.log.emit(
+                    f"Lỗi không mong đợi khi nạp: {type(exc).__name__}: {exc}"
+                )
+            finally:
+                self.br.done.emit(ok)
 
         threading.Thread(target=job, daemon=True).start()
 
     def on_done(self, ok):
         self.set_busy(False)
-<<<<<<< Updated upstream
-        self.ui.lbStatus.setText("THÀNH CÔNG - ứng dụng đang chạy" if ok
-                                 else "THẤT BẠI - bootloader vẫn ở lại, có thể nạp lại")
-=======
         self.ui.lbStatus.setText(
             "ĐÃ HỦY - quá trình nạp đã dừng."
             if self.stop_event.is_set()
             else (
-                "THÀNH CÔNG - bootloader đã chấp nhận lệnh chạy ứng dụng"
+                "THÀNH CÔNG - bootloader đã xác nhận lệnh chạy ứng dụng"
                 if ok else "THẤT BẠI - xem nhật ký để biết trạng thái thiết bị"
             )
         )
->>>>>>> Stashed changes
 
 
 if __name__ == "__main__":

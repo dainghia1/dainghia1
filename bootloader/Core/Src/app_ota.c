@@ -19,6 +19,8 @@
 #include "app_header.h"
 //#define OTA_FLAG_START 1
 
+#define OTA_IDLE_TIMEOUT_MS 3000U
+
 //u32 flash_buffer[5];
 /*
 void enable_ota_request(void)
@@ -63,21 +65,34 @@ static void send_resp(uint8_t cmd, status_t st)
     uart_send(response, sizeof response);
 }
 
+static int rx_frame_byte(uint8_t *byte, uint32_t timeout_ms, uint32_t *last_activity_tick)
+{
+    if (!rx_byte_timeout(byte, timeout_ms)) return 0;
+    *last_activity_tick = HAL_GetTick();
+    return 1;
+}
+
 /* ---------- Nhan khung ----------
  * return 0 = khung hop le, 1 = chua co SOF (ranh), -1 = loi khung (timeout/CRC16/EOF) */
-static int rx_frame(rx_frame_t *f)
+static int rx_frame(rx_frame_t *f, uint32_t *last_activity_tick)
 {
     uint8_t *raw = (uint8_t *)f;
     uint8_t tail[3];                               /* CRC16 (2 byte) + EOF (1 byte) */
 
-    if (!rx_byte_timeout(&raw[0], 10) || raw[0] != SOF) return 1;
+    if (!rx_frame_byte(&raw[0], 10, last_activity_tick)) return 1;
+    if (raw[0] == SYNC) {
+        uint8_t ack = ACK;
+        uart_send(&ack, sizeof ack);
+        return 1;
+    }
+    if (raw[0] != SOF) return 1;
     for (unsigned i = 1; i < sizeof(frame_hdr_t); i++)
-        if (!rx_byte_timeout(&raw[i], 200)) return -1;
+        if (!rx_frame_byte(&raw[i], 200, last_activity_tick)) return -1;
     if (f->hdr.len > FRAME_PAYLOAD_MAX) return -1;
     for (unsigned i = 0; i < f->hdr.len; i++)
-        if (!rx_byte_timeout(&f->payload[i], 500)) return -1;
+        if (!rx_frame_byte(&f->payload[i], 500, last_activity_tick)) return -1;
     for (unsigned i = 0; i < sizeof tail; i++)
-        if (!rx_byte_timeout(&tail[i], 200)) return -1;
+        if (!rx_frame_byte(&tail[i], 200, last_activity_tick)) return -1;
 
     /* cmd va len nam lien nhau ngay sau sof (struct packed) -> 3 byte */
     uint16_t calc = crc16(crc16(0, &raw[1], 3), f->payload, f->hdr.len);
@@ -140,11 +155,19 @@ void loader(void)
 {
     rx_frame_t f;
     session_t  s = {0};
+    uint32_t last_activity_tick = HAL_GetTick();
 
     for (;;) {
-        int r = rx_frame(&f);
+        int r = rx_frame(&f, &last_activity_tick);
+        if (HAL_GetTick() - last_activity_tick >= OTA_IDLE_TIMEOUT_MS) {
+            return;
+        }
         if (r == 1) continue;
-        if (r < 0) { send_resp(0, ST_ERR_FRAME); continue; }
+        if (r < 0) {
+            memset(&s, 0, sizeof s);
+            send_resp(0, ST_ERR_FRAME);
+            continue;
+        }
 
         status_t st;
         switch (f.hdr.cmd) {

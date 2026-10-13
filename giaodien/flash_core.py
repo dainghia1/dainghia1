@@ -32,7 +32,6 @@ APP_REBOOT_TIMEOUT = 1.0
 SYNC_TIMEOUT = 8.0
 RESPONSE_TIMEOUT = 1.0
 START_TIMEOUT = 8.0
-MAX_RESPONSE_TEXT_SIZE = 96
 
 
 class ProtocolError(Exception):
@@ -50,15 +49,14 @@ def crc16(data: bytes) -> int:
 
 
 def crc32_stm32(data: bytes) -> int:
-    """CRC phần cứng STM32: poly 0x04C11DB7, init 0xFFFFFFFF, theo từ 32-bit LE."""
-    if len(data) % 4:
-        data += b"\xFF" * (4 - len(data) % 4)
+    """Match crc32.c, which writes each byte as a zero-extended 32-bit word."""
     crc = 0xFFFFFFFF
-    for (word,) in struct.iter_unpack("<I", data):
-        crc ^= word
-        for _ in range(32):
-            crc = ((crc << 1) ^ 0x04C11DB7) & 0xFFFFFFFF if crc & 0x80000000 \
-                  else (crc << 1) & 0xFFFFFFFF
+    for byte in data:
+        for bit in range(31, -1, -1):
+            feedback = ((crc >> 31) ^ ((byte >> bit) & 1)) & 1
+            crc = (crc << 1) & 0xFFFFFFFF
+            if feedback:
+                crc ^= 0x04C11DB7
     return crc
 
 
@@ -135,13 +133,8 @@ def _request_app_reboot(ser) -> None:
 
 
 def _read_response(
-<<<<<<< Updated upstream
-    ser, expected_cmd: int, timeout: float
-) -> tuple[int, str] | None:
-=======
     ser, expected_cmd: int, timeout: float, stop_event
 ) -> int | None:
->>>>>>> Stashed changes
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if stop_event.is_set():
@@ -153,38 +146,20 @@ def _read_response(
             continue
         if first[0] != SOF:
             continue
-<<<<<<< Updated upstream
-        header = _read_exact(ser, 3, deadline)
-        if header is None:
-=======
         rest = _read_exact(ser, 5, deadline, stop_event)
         if rest is None:
             if stop_event.is_set():
                 return None
->>>>>>> Stashed changes
             return None
 
-        cmd, status, text_size = header
-        if text_size > MAX_RESPONSE_TEXT_SIZE:
-            raise ProtocolError(
-                f"Độ dài thông báo phản hồi không hợp lệ: {text_size}."
-            )
-        tail = _read_exact(ser, text_size + 3, deadline)
-        if tail is None:
-            return None
-
-        text = tail[:text_size]
-        received_crc = struct.unpack("<H", tail[text_size:text_size + 2])[0]
-        body = bytes([cmd, status, text_size]) + text
-        if tail[-1] != EOF or received_crc != crc16(body):
+        cmd, status = rest[:2]
+        received_crc = struct.unpack("<H", rest[2:4])[0]
+        if rest[4] != EOF or received_crc != crc16(bytes([cmd, status])):
             raise ProtocolError("Phản hồi bootloader sai CRC16/EOF.")
         if cmd != expected_cmd and not (cmd == 0 and status == ST_ERR_FRAME):
             raise ProtocolError(
                 f"CMD phản hồi không khớp (nhận {cmd}, cần {expected_cmd})."
             )
-<<<<<<< Updated upstream
-        return status, text.decode("utf-8", errors="replace")
-=======
         return status
     return None
 
@@ -225,8 +200,6 @@ def _send_command(
         if response == ST_ERR_FRAME and attempt < MAX_RETRY:
             continue
         return response
->>>>>>> Stashed changes
-    return None
 
 
 def _is_app_vector(image: bytes, offset: int = 0) -> bool:
@@ -251,42 +224,6 @@ def prepare_image(path: str) -> tuple[bytes, bool]:
             return image[APP_HEADER_SIZE:], True
 
     return image, False
-
-
-def _status_message(status: int) -> str:
-    messages = {
-        1: "Lỗi frame/CRC16",
-        2: "Lệnh không được hỗ trợ",
-        3: "Tham số hoặc kích thước không hợp lệ",
-        4: "Lệnh không đúng trạng thái phiên nạp",
-        5: "Offset dữ liệu không liên tiếp",
-        6: "Xóa Flash thất bại",
-        7: "Ghi Flash thất bại",
-        8: "CRC32 ảnh không khớp",
-        9: "Ứng dụng không hợp lệ",
-    }
-    return messages.get(status, f"Mã trạng thái không xác định: {status}")
-
-
-def _send_command(
-    ser, cmd: int, payload: bytes, timeout: float
-) -> tuple[int, str] | None:
-    packet = frame(cmd, payload)
-    for attempt in range(MAX_RETRY + 1):
-        ser.write(packet)
-        response = _read_response(ser, cmd, timeout)
-        if response is None:
-            if attempt < MAX_RETRY:
-                continue
-            return None
-
-        status, _ = response
-        if status == ST_OK:
-            return response
-        if status == ST_ERR_FRAME and attempt < MAX_RETRY:
-            continue
-        return response
-    return None
 
 
 def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
@@ -343,7 +280,7 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
     on_log(f"Mở {port} @ {baud}; đang bắt tay SYNC với bootloader...")
 
     try:
-        ser = serial.Serial(port, baud, timeout=0.1, write_timeout=1)
+        ser = serial.Serial(port, baud, timeout=0.1, write_timeout=0.25)
     except serial.SerialException as exc:
         if stop_event.is_set():
             on_log("Đã hủy bởi người dùng.")
@@ -406,16 +343,12 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                 on_log("Đã hủy bởi người dùng; dừng truyền firmware.")
                 return False
 
-            if response is None:
-                status = None
-                device_message = ""
-            else:
-                status, device_message = response
+            status = response
 
             if status != ST_OK:
                 if name == "END" and status == ST_ERR_CRC:
                     on_log(
-                        f"STM32 báo lỗi: {device_message or _status_message(status)}; "
+                        f"STM32 báo lỗi: {_status_message(status)}; "
                         "bootloader từ chối firmware; "
                         "không gửi JUMP, board ở lại bootloader."
                     )
@@ -432,25 +365,16 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                         )
                 else:
                     on_log(
-                        f"{name} thất bại: "
-                        f"{device_message or _status_message(status)} "
+                        f"{name} thất bại: {_status_message(status)} "
                         f"(status={status})."
                     )
                 return False
 
             on_progress(int(100 * (index + 1) / len(packets)))
 
-<<<<<<< Updated upstream
-    on_log("Nạp và kiểm tra CRC thành công; bootloader đã xác nhận lệnh JUMP.")
-=======
         on_log("Nạp và kiểm tra CRC thành công; bootloader đã xác nhận lệnh JUMP.")
-        try:
-            _log_application_output(ser, on_log, stop_event)
-        except serial.SerialException as exc:
-            on_log(f"Không đọc tiếp được UART từ Application: {exc}")
 
     if stop_event.is_set():
         on_log("Đã hủy theo dõi UART bởi người dùng.")
         return False
->>>>>>> Stashed changes
     return True

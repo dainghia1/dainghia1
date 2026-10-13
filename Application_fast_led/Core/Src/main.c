@@ -33,7 +33,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 #ifndef APP_BLINK_MS
-#define APP_BLINK_MS 1000U
+#define APP_BLINK_MS 100U
 #endif
 
 /* USER CODE END PTD */
