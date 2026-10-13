@@ -382,7 +382,7 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                 return False
 
             on_progress(int(100 * (index + 1) / len(packets)))
-           
+        on_log("Nạp và kiểm tra CRC thành công; bootloader đã xác nhận lệnh JUMP.")
         try:
             app_output = _read_application_output(
                 ser, APPLICATION_RESPONSE_TIMEOUT, stop_event
@@ -401,7 +401,7 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                     f"{APPLICATION_RESPONSE_TIMEOUT:.0f} giây."
                 )
 
-        on_log("Nạp và kiểm tra CRC thành công; bootloader đã xác nhận lệnh JUMP.")
+        
 
     if stop_event.is_set():
         on_log("Đã hủy theo dõi UART bởi người dùng.")
