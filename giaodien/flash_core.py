@@ -31,6 +31,7 @@ INITIAL_SYNC_TIMEOUT = 0.75
 APP_REBOOT_TIMEOUT = 1.0
 SYNC_TIMEOUT = 8.0
 RESPONSE_TIMEOUT = 1.0
+APPLICATION_RESPONSE_TIMEOUT = 5.0
 START_TIMEOUT = 8.0
 
 
@@ -163,6 +164,16 @@ def _read_response(
         return status
     return None
 
+def _read_application_output(ser, timeout: float, stop_event) -> bytes:
+    deadline = time.monotonic() + timeout
+    output = bytearray()
+    while time.monotonic() < deadline and not stop_event.is_set():
+        remaining = deadline - time.monotonic()
+        ser.timeout = min(0.1, remaining)
+        chunk = ser.read(max(1, ser.in_waiting))
+        if chunk:
+            output.extend(chunk)
+    return bytes(output)
 
 def _status_message(status: int) -> str:
     messages = {
@@ -371,6 +382,24 @@ def flash(port, baud, path, corrupt, on_progress, on_log, stop_event):
                 return False
 
             on_progress(int(100 * (index + 1) / len(packets)))
+           
+        try:
+            app_output = _read_application_output(
+                ser, APPLICATION_RESPONSE_TIMEOUT, stop_event
+            )
+        except serial.SerialException as exc:
+            on_log(f"Lỗi UART khi nhận phản hồi từ application: {exc}")
+        else:
+            if stop_event.is_set():
+                on_log("Đã dừng chờ phản hồi UART từ application.")
+            elif app_output:
+                message = app_output.decode("utf-8", errors="replace")
+                on_log(f"Phản hồi UART từ application:\n{message.rstrip()}")
+            else:
+                on_log(
+                    "Không nhận được dữ liệu UART từ application trong "
+                    f"{APPLICATION_RESPONSE_TIMEOUT:.0f} giây."
+                )
 
         on_log("Nạp và kiểm tra CRC thành công; bootloader đã xác nhận lệnh JUMP.")
 
