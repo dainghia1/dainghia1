@@ -11,7 +11,7 @@ uint32_t crc32(const uint8_t *data, uint32_t length)   // checksum 	FIRMWARE
 	CRC->CR = CRC_CR_RESET;
 
     for(uint32_t i = 0; i < length; i++) {
-        CRC->DR = data[2];
+        CRC->DR = data[i];
     }
     return CRC->DR;
 }

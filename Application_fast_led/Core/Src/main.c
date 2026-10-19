@@ -27,7 +27,6 @@
 #include "app_header.h"
 #include "bl_flag.h"
 #include "app_bl_entry.h"
-#include "button_entry.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -115,7 +114,6 @@ int main(void)
   HAL_GPIO_Init(GPIOC, &led);
 
   HAL_UART_Transmit(&huart1, (uint8_t*)"Inside Application!!\r\n", 22, 100);
-  btn_init();
   uint32_t led_changed_at = HAL_GetTick();
   /* USER CODE END 2 */
 
@@ -127,7 +125,6 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  uint32_t now = HAL_GetTick();
-	  btn_poll();
 	  bl_poll();
 
 	  if ((now - led_changed_at) >= APP_BLINK_MS) {
