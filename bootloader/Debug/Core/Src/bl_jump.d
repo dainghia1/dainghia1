@@ -25,7 +25,7 @@ Core/Src/bl_jump.o: ../Core/Src/bl_jump.c ../Core/Inc/bl_jump.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h \
  ../Core/Inc/type_config.h ../Core/Inc/app_header.h ../Core/Inc/crc32.h \
- ../Core/Inc/bl_jump.h ../Core/Inc/flash_prog.h
+ ../Core/Inc/bl_jump.h
 ../Core/Inc/bl_jump.h:
 ../Core/Inc/flash_layout.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h:
@@ -56,4 +56,3 @@ Core/Src/bl_jump.o: ../Core/Src/bl_jump.c ../Core/Inc/bl_jump.h \
 ../Core/Inc/app_header.h:
 ../Core/Inc/crc32.h:
 ../Core/Inc/bl_jump.h:
-../Core/Inc/flash_prog.h:

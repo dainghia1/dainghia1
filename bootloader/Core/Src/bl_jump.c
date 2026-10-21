@@ -7,7 +7,6 @@
 #include "bl_jump.h"
 #include "app_header.h"
 #include "crc32.h"
-#include "flash_prog.h"
 
 
 typedef void (*pFunction)(void);

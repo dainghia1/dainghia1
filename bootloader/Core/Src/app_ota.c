@@ -9,8 +9,7 @@
 #include "flash_layout.h"
 #include "main.h"
 #include "app_ota.h"
-#include "flash_operations.h"
-#include "flash_prog.h"
+#include "flash.h"
 #include "type_config.h"
 #include "bl_jump.h"
 #include "crc32.h"
@@ -21,20 +20,6 @@
 
 #define OTA_IDLE_TIMEOUT_MS 3000U
 
-//u32 flash_buffer[5];
-/*
-void enable_ota_request(void)
-{
-	HAL_FLASH_Unlock();
-	flash_read_page(APP_HEADER_ADDR, flash_buffer, n_word);
-
-	flash_buffer[0] = OTA_FLAG_START;
-	flash_erase_page(APP_HEADER_ADDR);
-	flash_write_page(APP_HEADER_ADDR, flash_buffer, n_word);
-	HAL_FLASH_Lock();
-	NVIC_SystemReset();
-}
-*/
 /* Khung: A5 | cmd | len(2,LE) | payload | crc16(2,LE) tren cmd,len,payload
  * return 0 ok, 1 chua co SOF, -1 loi khung/checksum */
 
@@ -109,7 +94,7 @@ static status_t on_start(session_t *s, const uint8_t *p, uint16_t len)
 
     s->size = sp->size; s->crc = sp->crc; s->version = sp->version;
     /* Xoa trang header (truoc app) roi cac trang code (sau header); thu tu khong quan trong */
-    if (flash_erase_page(APP_HEADER_ADDR) ||
+    if (flash_erase(APP_HEADER_ADDR, 1U) ||
         flash_erase(APP_START_ADDR, (s->size + PAGE_SZ - 1) / PAGE_SZ)) return ST_ERR_ERASE;
     s->started = 1;
     return ST_OK;
@@ -126,7 +111,6 @@ static status_t on_data(session_t *s, const uint8_t *p, uint16_t len)
     if (off + n == s->next) return ST_OK;                       /* goi lap do mat phan hoi */
     if (off != s->next) return ST_ERR_OFFSET;
     if (flash_write(APP_START_ADDR + off, dp->data, n)) return ST_ERR_WRITE;
-
     s->next += n;
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
     return ST_OK;
@@ -140,7 +124,7 @@ static status_t on_end(session_t *s)
 
     app_header_t hdr = { .reserved = 0, .magic = APP_MAGIC,
                          .size = s->size, .crc = s->crc, .version = s->version };
-    if (flash_write_page(APP_HEADER_ADDR, (u32 *)&hdr, sizeof hdr / 4)) return ST_ERR_WRITE;
+    if (flash_write(APP_HEADER_ADDR, &hdr, sizeof hdr)) return ST_ERR_WRITE;
     s->finished = 1;
     return ST_OK;
 }

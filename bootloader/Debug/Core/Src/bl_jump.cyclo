@@ -1,4 +1,4 @@
 ../Drivers/CMSIS/Include/core_cm3.h:1547:22:__NVIC_DisableIRQ	2
 ../Drivers/CMSIS/Include/core_cm3.h:1600:22:__NVIC_ClearPendingIRQ	2
-../Core/Src/bl_jump.c:15:6:JumptoApplication	1
-../Core/Src/bl_jump.c:44:5:bootloader_is_app_valid	6
+../Core/Src/bl_jump.c:14:6:JumptoApplication	1
+../Core/Src/bl_jump.c:43:5:bootloader_is_app_valid	6
