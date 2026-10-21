@@ -118,7 +118,7 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
-#define RXBUF_SIZE 64
+#define RXBUF_SIZE 1024
 
 static volatile uint8_t rx_buf[RXBUF_SIZE];
 static volatile uint8_t rx_head = 0, rx_tail = 0;

@@ -19,6 +19,7 @@ ST_ERR_CRC = 8
 
 BAUD_RATE = 115200
 CHUNK_SIZE = 1024
+FRAME_PAYLOAD_MAX = 4 + CHUNK_SIZE  # bootloader DATA packet: [u32 offset] + [u8 data[1024]]
 APP_HEADER_SIZE = 1024
 APP_HEADER_MAGIC = 0xABCDEFAB
 APP_START_ADDR = 0x08004400
@@ -62,8 +63,10 @@ def crc32_stm32(data: bytes) -> int:
 
 
 def frame(cmd: int, payload: bytes = b"") -> bytes:
-    if len(payload) > 132:
-        raise ValueError("Payload vượt quá bộ đệm của bootloader.")
+    if len(payload) > FRAME_PAYLOAD_MAX:
+        raise ValueError(
+            f"Payload vượt quá bộ đệm của bootloader ({FRAME_PAYLOAD_MAX} byte tối đa)."
+        )
     body = bytes([cmd]) + struct.pack("<H", len(payload)) + payload
     checksum = crc16(body)
     return bytes([SOF]) + body + struct.pack("<H", checksum) + bytes([EOF])

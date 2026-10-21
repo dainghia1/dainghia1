@@ -56,7 +56,9 @@ static inline void bl_poll(void)
     /* Đọc không chờ; gọi thường xuyên từ vòng lặp chính. */
     if (!(USART1->SR & USART_SR_RXNE))
         return;
-
+/*
+kiểm tra cờ RXNE =1 đã nhận được byte mới, =0 chưa có byte mới , thoát hàm ngay
+*/
     uint8_t byte = (uint8_t)USART1->DR;
 
     for (uint8_t i = 0; i < 5; i++)

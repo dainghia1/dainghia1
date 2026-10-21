@@ -1,4 +1,4 @@
-08:24:43 **** Build of configuration Debug for project bootloader ****
+15:34:24 **** Incremental Build of configuration Debug for project bootloader ****
 make -j12 all 
 arm-none-eabi-size  bootloader.elf 
    text	   data	    bss	    dec	    hex	filename
